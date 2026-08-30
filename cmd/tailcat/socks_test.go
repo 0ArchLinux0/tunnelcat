@@ -1,0 +1,266 @@
+// Copyright (c) Tailscale Inc & contributors
+// SPDX-License-Identifier: BSD-3-Clause
+
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"tailscale.com/tstest/integration"
+)
+
+func TestClassifySOCKSAddr(t *testing.T) {
+	ap := netip.MustParseAddrPort
+	noLookup := func(ctx context.Context, host string) ([]netip.Addr, error) {
+		return nil, fmt.Errorf("unexpected lookup of %q", host)
+	}
+	lookupOf := func(ips ...string) func(context.Context, string) ([]netip.Addr, error) {
+		return func(ctx context.Context, host string) ([]netip.Addr, error) {
+			var ret []netip.Addr
+			for _, s := range ips {
+				ret = append(ret, netip.MustParseAddr(s))
+			}
+			return ret, nil
+		}
+	}
+
+	tests := []struct {
+		name    string
+		addr    string
+		lookup  func(context.Context, string) ([]netip.Addr, error)
+		want    socksTarget
+		wantErr bool
+	}{
+		{
+			name:   "server_magic_name",
+			addr:   "server.tailcat:8081",
+			lookup: noLookup,
+			want:   socksTarget{toServer: true, port: 8081},
+		},
+		{
+			name:   "empty_host",
+			addr:   ":80",
+			lookup: noLookup,
+			want:   socksTarget{toServer: true, port: 80},
+		},
+		{
+			name:   "blob_host",
+			addr:   "tcomFwWCCcjS5nKNqAod034nWoJZW0LZqDhhC8U_dKdnDRYQ8uNGFpGQEu:8081",
+			lookup: noLookup,
+			want: socksTarget{
+				blob: "tcomFwWCCcjS5nKNqAod034nWoJZW0LZqDhhC8U_dKdnDRYQ8uNGFpGQEu",
+				port: 8081,
+			},
+		},
+		{
+			name:   "tc_prefixed_non_blob_host_uses_lookup",
+			addr:   "tcserver:80",
+			lookup: lookupOf("192.0.2.1"),
+			want:   socksTarget{dst: ap("192.0.2.1:80")},
+		},
+		{
+			name:   "ipv4_literal",
+			addr:   "10.1.2.3:80",
+			lookup: noLookup,
+			want:   socksTarget{dst: ap("10.1.2.3:80")},
+		},
+		{
+			name:   "ipv6_literal",
+			addr:   "[2001:db8::1]:443",
+			lookup: noLookup,
+			want:   socksTarget{dst: ap("[2001:db8::1]:443")},
+		},
+		{
+			name:   "ipv4_mapped_literal_unmapped",
+			addr:   "[::ffff:1.2.3.4]:80",
+			lookup: noLookup,
+			want:   socksTarget{dst: ap("1.2.3.4:80")},
+		},
+		{
+			name:   "hostname_prefers_ipv4",
+			addr:   "example.com:80",
+			lookup: lookupOf("2001:db8::1", "192.0.2.1"),
+			want:   socksTarget{dst: ap("192.0.2.1:80")},
+		},
+		{
+			name:   "hostname_ipv6_only",
+			addr:   "example.com:80",
+			lookup: lookupOf("2001:db8::1"),
+			want:   socksTarget{dst: ap("[2001:db8::1]:80")},
+		},
+		{
+			name: "hostname_lookup_error",
+			addr: "example.com:80",
+			lookup: func(ctx context.Context, host string) ([]netip.Addr, error) {
+				return nil, errors.New("nope")
+			},
+			wantErr: true,
+		},
+		{
+			name:    "hostname_no_addresses",
+			addr:    "example.com:80",
+			lookup:  lookupOf(),
+			wantErr: true,
+		},
+		{
+			name:    "missing_port",
+			addr:    "example.com",
+			lookup:  noLookup,
+			wantErr: true,
+		},
+		{
+			name:    "bad_port",
+			addr:    "example.com:99999",
+			lookup:  noLookup,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := classifySOCKSAddr(context.Background(), tt.lookup, tt.addr)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("classifySOCKSAddr(%q) = %+v; want error", tt.addr, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("classifySOCKSAddr(%q): %v", tt.addr, err)
+			}
+			if got != tt.want {
+				t.Fatalf("classifySOCKSAddr(%q) = %+v; want %+v", tt.addr, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSOCKSClientKey verifies that "tailcat socks" presents the
+// --key client identity rather than a fresh ephemeral node key, by
+// connecting to a server that only allows that identity. Before this
+// test existed, socks mode ignored --key and could never reach a
+// server locked down with --allow (issue #24).
+func TestSOCKSClientKey(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "tailcat")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	dm := integration.RunDERPAndSTUN(t, t.Logf, "127.0.0.1")
+	dmJSON, err := json.Marshal(dm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(dmJSON)
+	}))
+	defer dmSrv.Close()
+
+	// Point os.UserCacheDir at a temp dir so test runs don't litter
+	// the real user cache with DERP map entries keyed by this test's
+	// ephemeral --derpmap-url.
+	cacheDir := t.TempDir()
+	cacheEnv := []string{
+		"XDG_CACHE_HOME=" + cacheDir, // Linux
+		"HOME=" + cacheDir,           // macOS
+		"LocalAppData=" + cacheDir,   // Windows
+	}
+
+	clientKey := filepath.Join(t.TempDir(), "c.private.json")
+	if out, err := exec.Command(bin, "genkey", "--client", "--key="+clientKey).CombinedOutput(); err != nil {
+		t.Fatalf("genkey: %v\n%s", err, out)
+	}
+	pub, err := exec.Command(bin, "--key="+clientKey, "printpub").Output()
+	if err != nil {
+		t.Fatalf("printpub: %v", err)
+	}
+	cpub := strings.TrimSpace(string(pub))
+
+	addrFile := filepath.Join(t.TempDir(), "addr")
+	server := exec.Command(bin, "--key=new", "--derpmap-url="+dmSrv.URL, "--serve=all", "--allow="+cpub)
+	server.Env = append(append(os.Environ(), cacheEnv...), "TAILCAT_ADDR_FILE="+addrFile)
+	var serverErr bytes.Buffer
+	server.Stderr = &serverErr
+	if err := server.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer server.Process.Kill()
+
+	var blob string
+	deadline := time.Now().Add(30 * time.Second)
+	for blob == "" {
+		if time.Now().After(deadline) {
+			t.Fatalf("timeout waiting for addr file; server stderr:\n%s", serverErr.String())
+		}
+		b, err := os.ReadFile(addrFile)
+		if err == nil && len(b) > 0 {
+			blob = strings.TrimSpace(string(b))
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Logf("server blob: %s", blob)
+
+	// The socks client pings the server before starting the proxy and
+	// exits non-zero if the ping fails, so a successful run of a
+	// trivial child command proves the allowlisted handshake worked.
+	client := exec.Command(bin, "--key="+clientKey, "--derpmap-url="+dmSrv.URL, "socks", blob, "true")
+	client.Env = append(os.Environ(), cacheEnv...)
+	if out, err := client.CombinedOutput(); err != nil {
+		t.Fatalf("socks with allowlisted --key failed: %v\n%s", err, out)
+	}
+}
+
+func TestNormalizeListenAddrPort(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "integer only",
+			input: "1234",
+			want:  "127.0.0.1:1234",
+		},
+		{
+			name:  "omit address means all interfaces",
+			input: ":1234",
+			want:  ":1234",
+		},
+		{
+			name:  "omit port with IPv4 address",
+			input: "127.0.0.1",
+			want:  "127.0.0.1:0",
+		},
+		{
+			name:  "omit port with IPv6 address",
+			input: "[2001:db8::1]",
+			want:  "[2001:db8::1]:0",
+		},
+		{
+			name:  "others",
+			input: "foo",
+			want:  "foo:0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeListenAddrPort(tt.input)
+			if got != tt.want {
+				t.Fatalf("normalizeListenAddrPort(%q) = %q; want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

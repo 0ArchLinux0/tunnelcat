@@ -1,0 +1,28 @@
+[package]
+name = "tunnelcat-proto"
+version = "0.1.0"
+edition = "2021"
+description = "tunnelcat protocol layer (Meow, type-state, ed25519) — Rust crate, called from Go via cgo"
+license = "BSD-3-Clause"
+
+[lib]
+# A C-compatible static library is what cgo links against.
+# `crate-type = ["staticlib"]` produces a libtunnelcat_proto.a file
+# that go can link with #cgo LDFLAGS.
+crate-type = ["staticlib"]
+
+[dependencies]
+# None yet. The point of this stage is to prove the Go↔Rust
+# boundary works. Real deps (ed25519-dalek, serde_cbor, etc.)
+# land in stage 2 when the actual protocol code is written.
+
+[build-dependencies]
+# (cbindgen was tried in stage 1.5 but emits C++ headers by
+# default, which break cgo's C-only compilation. The C header
+# is hand-written at include/tunnelcat_proto.h for now. We
+# will re-introduce cbindgen in stage 2 with the right config.)
+
+[profile.release]
+# Match Go's static linking expectations.
+lto = true
+codegen-units = 1

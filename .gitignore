@@ -1,0 +1,17 @@
+# Built binaries.
+/tailcat
+/cmd/tailcat/tailcat
+
+# GoReleaser output.
+/dist
+
+# Go test artifacts.
+*.test
+*.out
+
+# Rust crate build artifacts
+crates/*/target/
+# Cargo.lock for libraries is committed by convention, but for
+# this workspace we treat the Go repo as the source of truth and
+# the crate as a vendored dependency, so we ignore Cargo.lock.
+crates/*/Cargo.lock
