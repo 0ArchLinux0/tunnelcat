@@ -148,6 +148,9 @@ from the user._
 | The fork-setup script | `bin/setup-fork.sh` |
 | The release script | `bin/release.sh` |
 | The rebuild script | `bin/rebuild.sh` |
+| The macOS install script | `bin/install-mac.sh` |
+| The Windows install script | `bin/install-windows.bat` |
+| **The sibling project, tapauth** | `~/code_repo/tapauth/` (or `github.com/0ArchLinux0/tapauth`) — phone-as-authenticator; bootstrap only, no code yet |
 
 ---
 
