@@ -8,11 +8,12 @@
 
 ## TL;DR (read this first, 30 seconds)
 
-**tunnelcat v0.1.0 is shipped.** M0 (seed) closed. Repo at
-github.com/0ArchLinux0/tunnelcat. Next: M1 (stable identity +
-contacts YAML) — see `canon/closures/M0-20260830.md` for the
-M0 closure (the full milestone summary, sub-stepping, and
-what was tried/failed/deferred) and `canon/ROADMAP.md` for M1.
+**tunnelcat v0.1.0 is shipped.** M0 (seed) closed. M1
+("I can give this to one friend") has a 17-sub-step
+working plan but no code yet. Repo at
+github.com/0ArchLinux0/tunnelcat. Next: start M1 by
+reading `canon/plans/M1-20260830.md` (the working plan)
+and the M0 closure at `canon/closures/M0-20260830.md`.
 
 ---
 
@@ -131,6 +132,7 @@ from the user._
 |---|---|
 | **What is tunnelcat right now?** | `STATUS.md` (this file) |
 | **The M0 closure (done)** | `canon/closures/M0-20260830.md` |
+| **The M1 working plan (next)** | `canon/plans/M1-20260830.md` |
 | The plan (stages, non-goals, novelty) | `canon/PROJECTS.md` |
 | The long-term roadmap (M0–M8) | `canon/ROADMAP.md` |
 | The tailcat API cheat sheet | `canon/TAILCAT-API.md` |
