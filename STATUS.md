@@ -8,16 +8,11 @@
 
 ## TL;DR (read this first, 30 seconds)
 
-**tunnelcat** = a Tailscale-style full-mesh VPN, built on `tailscale.com`'s
-data plane, with three novelties: (1) type-safe Rust Meow handshake,
-(2) key-as-identity peer map, (3) mDNS LAN auto-discovery. Project is
-at **Stage 0.5 (planning + env)** as of 2026-08-30. User is studying
-networking in parallel; agent is doing non-code prep work while user
-catches up.
-
-**Current state:** canon + rules written, baseline builds clean, Go
-1.27 installed, no code yet. Stage 1 (CLI wrapper) is the first code
-session and waits for the user.
+**tunnelcat v0.1.0 is shipped.** M0 (seed) closed. Repo at
+github.com/0ArchLinux0/tunnelcat. Next: M1 (stable identity +
+contacts YAML) — see `canon/closures/M0-20260830.md` for the
+M0 closure (the full milestone summary, sub-stepping, and
+what was tried/failed/deferred) and `canon/ROADMAP.md` for M1.
 
 ---
 
@@ -135,7 +130,9 @@ from the user._
 | I want to find... | Look here |
 |---|---|
 | **What is tunnelcat right now?** | `STATUS.md` (this file) |
+| **The M0 closure (done)** | `canon/closures/M0-20260830.md` |
 | The plan (stages, non-goals, novelty) | `canon/PROJECTS.md` |
+| The long-term roadmap (M0–M8) | `canon/ROADMAP.md` |
 | The tailcat API cheat sheet | `canon/TAILCAT-API.md` |
 | The repo-local rules for the agent | `AGENTS.md` |
 | How the network substrate works (the "why") | `~/.pi/agent/knowledge/notion-articles/01-how-tailcat-works.md` |
@@ -147,6 +144,8 @@ from the user._
 | The Rust crate | `crates/tunnelcat-proto/` |
 | The Go↔Rust bridge | `internal/rustbridge/` |
 | The fork-setup script | `bin/setup-fork.sh` |
+| The release script | `bin/release.sh` |
+| The rebuild script | `bin/rebuild.sh` |
 
 ---
 

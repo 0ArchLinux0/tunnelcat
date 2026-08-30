@@ -60,6 +60,10 @@ What we are NOT trying to be (this list is load-bearing):
 > install, run, and tell their friend "look at this." Each
 > milestone has a **gate** that has to be green before we ship it.
 
+> **Status of milestones:**
+> - ✅ **M0 (seed):** shipped 2026-08-30 at commit `c89e208` (v0.1.0). Closure doc: `canon/closures/M0-20260830.md`. Release: github.com/0ArchLinux0/tunnelcat/releases/tag/v0.1.0.
+> - ⏳ **M1–M8:** not started. See ROADMAP.md below.
+
 ### M0 — The seed (✅ done as of 2026-08-30)
 
 **Shippable thing:** a fork of `tailscale/tailcat` with a working
@@ -489,6 +493,18 @@ When a milestone ships, we record it:
 We do **not** delete old sections. The plan is the history
 of the plan. If you want to see what we thought M3 would
 look like in August 2026, you scroll down.
+
+---
+
+## Updates
+
+### 2026-08-30 — M0 shipped
+
+- M0 gate met at commit `c89e208` (HEAD of main).
+- Released as v0.1.0 at https://github.com/0ArchLinux0/tunnelcat/releases/tag/v0.1.0
+- 5 platform tarballs (darwin-arm64, darwin-amd64, linux-amd64, linux-arm64, windows-amd64) plus a universal `install.sh`.
+- Closure doc: `canon/closures/M0-20260830.md`. Read that for the M0 details; do not re-read this section's M0 description.
+- Next: M1, target 1–2 weeks. Sub-stepping for M1 is in the closure doc.
 
 ---
 
