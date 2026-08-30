@@ -1,18 +1,21 @@
+//go:build cgo
+// +build cgo
+
 // Package rustbridge is the Go side of the Go↔Rust boundary.
 //
 // The Rust crate lives at `crates/tunnelcat-proto/`. It is built
-// by `cargo build` and produces a static library
+// by `cargo build --release` and produces a static library
 // `libtunnelcat_proto.a`. The C header it exports is
 // `tunnelcat_proto.h` (hand-written at
 // `crates/tunnelcat-proto/include/tunnelcat_proto.h` because
 // cbindgen emitted C++ headers by default which break cgo).
 //
-// This package wraps those C functions in idiomatic Go. It is the
-// ONLY package in the Go code base that uses cgo.
-//
-// In stage 1.5 (this commit), the bridge exposes a `Version()`
-// function and an `Echo()` function as smoke tests. The real
-// protocol surface lands in stage 2.
+// This package is only compiled when CGO_ENABLED=1, because it
+// uses cgo to call into the Rust static library. Binaries built
+// with CGO_ENABLED=0 (cross-compiled to other platforms) skip
+// this package entirely. The Version() and Echo() functions are
+// small enough that callers should check for their presence via
+// build tags or just use the rest of the binary normally.
 //
 // # IMPORTANT: cgo cache gotcha
 //
@@ -29,7 +32,7 @@
 package rustbridge
 
 // #cgo CFLAGS: -I${SRCDIR}/../../crates/tunnelcat-proto/include
-// #cgo LDFLAGS: ${SRCDIR}/../../crates/tunnelcat-proto/target/debug/libtunnelcat_proto.a
+// #cgo LDFLAGS: ${SRCDIR}/../../crates/tunnelcat-proto/target/release/libtunnelcat_proto.a
 // #include <stdlib.h>
 // #include "tunnelcat_proto.h"
 import "C"

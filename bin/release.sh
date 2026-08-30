@@ -1,28 +1,22 @@
 #!/usr/bin/env bash
-# release.sh — cross-compile tunnelcat for the common targets.
+# release.sh — build tunnelcat binaries for distribution.
+#
+# v0.1.0: builds for the targets we can reasonably cross-compile
+# from a Mac. The Rust bridge (the FFI into the tunnelcat-proto
+# crate) only links when the host platform matches the target.
+# For other targets, the binary is built with CGO_ENABLED=0 and
+# the Rust bridge returns errors at runtime — but the rest of
+# tunnelcat (the data plane, the CLI dispatch, the WireGuard
+# tunnel) works fine.
 #
 # Usage:
 #   bin/release.sh <version>     # e.g. bin/release.sh v0.1.0
 #
-# What it does:
-#   1. Validates the version string
-#   2. Builds the Rust crate once per (target, profile)
-#   3. Cross-compiles the Go binary for:
-#        linux/amd64, linux/arm64, darwin/amd64, darwin/arm64
-#   4. Embeds the version string via -ldflags
-#   5. Places the result in dist/<version>/<target>/tunnelcat[.exe]
-#   6. Prints a sha256 for each binary
-#
-# What it does NOT do:
-#   - Create the GitHub release (needs the user's push access)
-#   - Sign the binaries (the user can add cosign later)
-#   - Build Windows MSI / macOS DMG (goreleaser can do this)
-#
-# Requirements:
-#   - Go 1.27+ with CGO_ENABLED support for the host arch
-#   - Rust stable
-#   - The crates/tunnelcat-proto C header in the stable include
-#     path (build.rs does this automatically)
+# Output:
+#   dist/<version>/<friendly>/tunnelcat[.exe]   the binary
+#   dist/<version>/<friendly>/SHA256SUMS        checksums
+#   dist/<version>/<friendly>.tar.gz            tarball
+#   dist/<version>/install.sh                   one-liner installer
 
 set -euo pipefail
 
@@ -39,157 +33,163 @@ if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
   exit 1
 fi
 
-# Cross-compile matrix.
-TARGETS=(
-  "linux/amd64"
-  "linux/arm64"
-  "darwin/amd64"
-  "darwin/arm64"
-  "windows/amd64"
-)
+HOST_OS="$(uname -s | tr 'A-Z' 'a-z')"
+HOST_ARCH="$(uname -m)"
+case "${HOST_ARCH}" in
+  x86_64)  HOST_ARCH="amd64" ;;
+  aarch64) HOST_ARCH="arm64" ;;
+esac
 
-# Per-target CGO configuration. CGO is required because we link
-# against the Rust static library. For non-host targets we need a
-# cross C compiler.
-#
-# Mapping: target -> CGO_ENABLED + (any extra env).
-declare -A CGO_ENV
-CGO_ENV["linux/amd64"]="CGO_ENABLED=1 CC=x86_64-linux-gnu-gcc"
-CGO_ENV["linux/arm64"]="CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc"
-CGO_ENV["darwin/amd64"]="CGO_ENABLED=1 CC=o64-clang"   # requires osxcross
-CGO_ENV["darwin/arm64"]="CGO_ENABLED=1 CC=oa64-clang"  # requires osxcross
-CGO_ENV["windows/amd64"]="CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc"
-
-# Detect host platform.
-HOST_OS="$(go env GOOS)"
-HOST_ARCH="$(go env GOARCH)"
-
-# Setup.
 DIST="dist/${VERSION}"
 mkdir -p "${DIST}"
+
 echo ""
 echo "tunnelcat release builder"
 echo "  version : ${VERSION}"
 echo "  host    : ${HOST_OS}/${HOST_ARCH}"
-echo "  targets : ${TARGETS[*]}"
 echo "  output  : ${DIST}/"
 echo ""
 
-# Make sure the Rust crate is up to date.
-echo "→ building Rust crate (host)"
+# Build the Rust crate in release mode (host arch only).
+echo "→ building Rust crate (host, release)"
 (cd crates/tunnelcat-proto && cargo build --release)
 echo ""
 
-# For each target, rebuild the Rust static lib with the cross
-# toolchain, then cross-compile Go with cgo, then collect the
-# binary.
-for target in "${TARGETS[@]}"; do
-  os="${target%/*}"
-  arch="${target#*/}"
-  ext=""
-  [[ "${os}" == "windows" ]] && ext=".exe"
+# Each entry: "goos goarch friendly cgo_enabled(0|1)"
+TARGETS=(
+  "${HOST_OS} ${HOST_ARCH} ${HOST_OS}-${HOST_ARCH} 1"
+  "linux amd64 linux-amd64 0"
+  "linux arm64 linux-arm64 0"
+  "darwin amd64 darwin-amd64 1"
+  "darwin arm64 darwin-arm64 1"
+  "windows amd64 windows-amd64 0"
+)
 
-  outdir="${DIST}/${target}"
+for entry in "${TARGETS[@]}"; do
+  read -r goos goarch friendly cgo <<< "${entry}"
+  ext=""
+  [[ "${goos}" == "windows" ]] && ext=".exe"
+
+  outdir="${DIST}/${friendly}"
   mkdir -p "${outdir}"
   outpath="${outdir}/tunnelcat${ext}"
 
-  echo "→ building ${target}"
-
-  # CGO env (with a sane default for host).
-  if [[ "${target}" == "${HOST_OS}/${HOST_ARCH}" ]]; then
-    cgo_line="CGO_ENABLED=1"
+  # Decide CGO.
+  cgo_cflags=""
+  cgo_ldflags=""
+  if [[ "${cgo}" == "1" && "${goos}" == "${HOST_OS}" && "${goarch}" == "${HOST_ARCH}" ]]; then
+    cgo_cflags="-I${PWD}/crates/tunnelcat-proto/include"
+    cgo_ldflags="-L${PWD}/crates/tunnelcat-proto/target/release -ltunnelcat_proto"
+    cgo_env="CGO_ENABLED=1"
   else
-    cgo_line="${CGO_ENV[${target}]:-CGO_ENABLED=0}"
-    if [[ "${cgo_line}" == *"CGO_ENABLED=0"* ]]; then
-      echo "  warning: no CGO toolchain configured for ${target};" \
-        "falling back to CGO_ENABLED=0 (cgo bridge will not link)"
-    fi
+    cgo_env="CGO_ENABLED=0"
   fi
 
-  # Rust cross-compile for the target. This uses cargo's standard
-  # target-triple form. Skip if the target isn't installed.
-  rust_target=""
-  case "${target}" in
-    linux/amd64)   rust_target="x86_64-unknown-linux-gnu" ;;
-    linux/arm64)   rust_target="aarch64-unknown-linux-gnu" ;;
-    darwin/amd64)  rust_target="x86_64-apple-darwin" ;;
-    darwin/arm64)  rust_target="aarch64-apple-darwin" ;;
-    windows/amd64) rust_target="x86_64-pc-windows-gnu" ;;
-  esac
-  if [[ -n "${rust_target}" ]] && rustup target list --installed 2>/dev/null | grep -q "${rust_target}"; then
-    (cd crates/tunnelcat-proto && cargo build --release --target "${rust_target}")
-    # Copy the static lib into the per-target out dir so the Go
-    # build can find it via -L.
-    rust_out="crates/tunnelcat-proto/target/${rust_target}/release"
-    if [[ -f "${rust_out}/libtunnelcat_proto.a" ]]; then
-      cp "${rust_out}/libtunnelcat_proto.a" "${outdir}/"
-      # Also re-emit the C header for the per-target include.
-      mkdir -p "${outdir}/include"
-      cp "crates/tunnelcat-proto/include/tunnelcat_proto.h" "${outdir}/include/"
-      extra_cflags="-I${outdir}/include"
-      extra_ldflags="-L${outdir} -ltunnelcat_proto"
-    else
-      echo "  warning: Rust build did not produce libtunnelcat_proto.a for ${target}"
-      extra_cflags=""
-      extra_ldflags=""
-    fi
+  echo "→ building ${friendly} (cgo=${cgo_env})"
+
+  ldflags="-s -w -X main.version=${VERSION}"
+  set +e
+  if [[ -n "${cgo_cflags}" ]]; then
+    CGO_ENABLED=1 \
+      CGO_CFLAGS="${cgo_cflags}" \
+      CGO_LDFLAGS="${cgo_ldflags}" \
+      GOOS="${goos}" GOARCH="${goarch}" \
+      go build -ldflags "${ldflags}" -o "${outpath}" ./cmd/tunnelcat 2>"${outdir}/build.err"
+    rc=$?
   else
-    echo "  warning: Rust target ${rust_target} not installed; skipping Rust cross-compile"
-    extra_cflags=""
-    extra_ldflags=""
+    GOOS="${goos}" GOARCH="${goarch}" \
+      go build -ldflags "${ldflags}" -o "${outpath}" ./cmd/tunnelcat 2>"${outdir}/build.err"
+    rc=$?
   fi
-
-  # Go cross-compile.
-  #
-  # CGO_CFLAGS / CGO_LDFLAGS are how you point cgo at a non-default
-  # include path / library. We use them to point at the per-target
-  # Rust static lib.
-  if [[ -n "${extra_cflags}" ]]; then
-    GOOS="${os}" GOARCH="${arch}" \
-      CGO_ENABLED=1 \
-      CGO_CFLAGS="${extra_cflags}" \
-      CGO_LDFLAGS="${extra_ldflags}" \
-      go build \
-        -ldflags "-s -w -X main.version=${VERSION}" \
-        -o "${outpath}" \
-        ./cmd/tunnelcat 2>/dev/null \
-      || echo "  warning: Go build with cgo failed for ${target}; falling back to CGO_ENABLED=0"
-  fi
+  set -e
 
   if [[ ! -f "${outpath}" ]]; then
-    # Fallback: build without cgo. The Go binary will work but
-    # the Rust bridge will return errors. The user can rebuild
-    # with the right toolchain.
-    GOOS="${os}" GOARCH="${arch}" \
-      CGO_ENABLED=0 \
-      go build \
-        -ldflags "-s -w -X main.version=${VERSION}" \
-        -o "${outpath}" \
-        ./cmd/tunnelcat
+    echo "  ✗ ${friendly} FAILED"
+    sed 's/^/    /' "${outdir}/build.err" | head -5
+    rm -rf "${outdir}"
+    continue
   fi
 
-  if [[ -f "${outpath}" ]]; then
-    # sha256
-    if command -v sha256sum >/dev/null 2>&1; then
-      sha="$(sha256sum "${outpath}" | awk '{print $1}')"
-    else
-      sha="$(shasum -a 256 "${outpath}" | awk '{print $1}')"
-    fi
-    size="$(stat -f "%z" "${outpath}" 2>/dev/null || stat -c "%s" "${outpath}")"
-    echo "  ✓ ${outpath} (${size} bytes, sha256=${sha})"
+  rm -f "${outdir}/build.err"
+
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha="$(sha256sum "${outpath}" | awk '{print $1}')"
   else
-    echo "  ✗ ${target} FAILED"
+    sha="$(shasum -a 256 "${outpath}" | awk '{print $1}')"
   fi
+  size="$(stat -f "%z" "${outpath}" 2>/dev/null || stat -c "%s" "${outpath}")"
+  printf "%s  %s\n" "${sha}" "tunnelcat${ext}" > "${outdir}/SHA256SUMS"
+  echo "  ✓ ${outpath} (${size} bytes, sha256=${sha})"
 done
+
+# Tarball each successful build.
+echo ""
+echo "→ packaging tarballs"
+for outdir in "${DIST}"/*/; do
+  friendly="$(basename "${outdir}")"
+  if [[ ! -f "${outdir}/tunnelcat" && ! -f "${outdir}/tunnelcat.exe" ]]; then
+    continue
+  fi
+  tarball="${DIST}/${friendly}.tar.gz"
+  tar -C "${DIST}" -czf "${tarball}" "${friendly}/" 2>/dev/null
+  echo "  ✓ ${tarball}"
+done
+
+# Write install.sh.
+cat > "${DIST}/install.sh" <<'INSTALL_EOF'
+#!/usr/bin/env bash
+# tunnelcat install script
+# Usage:
+#   curl -fsSL https://github.com/0ArchLinux0/tunnelcat/releases/latest/download/install.sh | sh
+#   curl -fsSL https://github.com/0ArchLinux0/tunnelcat/releases/download/v0.1.0/install.sh | sh
+
+set -euo pipefail
+REPO="0ArchLinux0/tunnelcat"
+INSTALL_DIR="${TUNNELCAT_INSTALL_DIR:-/usr/local/bin}"
+
+OS="$(uname -s | tr 'A-Z' 'a-z')"
+ARCH="$(uname -m)"
+case "${ARCH}" in
+  x86_64)  ARCH="amd64" ;;
+  aarch64) ARCH="arm64" ;;
+esac
+case "${OS}" in
+  darwin|linux) ;;
+  *) echo "unsupported OS: ${OS}" >&2; exit 1 ;;
+esac
+
+FRIENDLY="${OS}-${ARCH}"
+URL_BASE="https://github.com/${REPO}/releases"
+if [[ -n "${TUNNELCAT_VERSION:-}" ]]; then
+  URL_BASE="${URL_BASE}/download/${TUNNELCAT_VERSION}"
+else
+  URL_BASE="${URL_BASE}/latest/download"
+fi
+TARBALL_URL="${URL_BASE}/${FRIENDLY}.tar.gz"
+
+echo "installing tunnelcat for ${FRIENDLY}..."
+echo "  from: ${TARBALL_URL}"
+echo "  to:   ${INSTALL_DIR}/tunnelcat"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+
+if command -v curl >/dev/null 2>&1; then
+  curl -fsSL "${TARBALL_URL}" -o "${tmp}/tunnelcat.tar.gz"
+elif command -v wget >/dev/null 2>&1; then
+  wget -q "${TARBALL_URL}" -O "${tmp}/tunnelcat.tar.gz"
+else
+  echo "error: need curl or wget" >&2
+  exit 1
+fi
+
+tar -xzf "${tmp}/tunnelcat.tar.gz" -C "${tmp}"
+install -m 0755 "${tmp}/${FRIENDLY}/tunnelcat" "${INSTALL_DIR}/tunnelcat"
+echo "  ✓ installed ${INSTALL_DIR}/tunnelcat"
+INSTALL_EOF
+chmod +x "${DIST}/install.sh"
+echo "  ✓ ${DIST}/install.sh"
 
 echo ""
 echo "done. artifacts in ${DIST}/"
-echo ""
-echo "to create a GitHub release (after the user re-points origin):"
-echo "  gh release create ${VERSION} ${DIST}/**/*.{tar.gz,zip} \\"
-echo "    --title 'tunnelcat ${VERSION}' \\"
-echo "    --notes-file - <<EOF"
-echo "  First release of tunnelcat."
-echo "  See README for usage."
-echo "  EOF"
-echo ""
+ls -la "${DIST}/"

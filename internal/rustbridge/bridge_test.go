@@ -1,3 +1,6 @@
+//go:build cgo
+// +build cgo
+
 // Tests for the Go↔Rust bridge. These are real tests, not
 // skipped skeletons. If they fail, the bridge is broken and
 // stage 2 cannot proceed.
