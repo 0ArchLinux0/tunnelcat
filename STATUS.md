@@ -25,11 +25,11 @@ session and waits for the user.
 
 | When | What | Commit | Where to read more |
 |---|---|---|---|
-| 2026-08-30 | (about to commit) | (this commit) | `canon/ROADMAP.md` (M0-M8 long-term plan) |
+| 2026-08-30 | (about to commit) | (this commit) | v0.1.0 release published |
+| 2026-08-30 | rustbridge cgo-gated; release script v2 | `d51a330` | `internal/rustbridge/`, `bin/release.sh` |
+| 2026-08-30 | M0 roadmap (M0-M8) | `40afef9` | `canon/ROADMAP.md` |
 | 2026-08-30 | Stage 1 ships — working CLI + e2e test | `c247769` (branch) | `cmd/tunnelcat/` |
 | 2026-08-30 | cmd/tunnelcat/main.go skeleton + release + rebuild | `1faddc9` | `cmd/tunnelcat/main.go`, `bin/release.sh`, `bin/rebuild.sh` |
-| 2026-08-30 | CI workflow + deep-dive doc fix | `0bd93ec` | `.github/workflows/test.yml` |
-| 2026-08-30 | tailcat API cheat sheet + study plan | `b41adea` | `canon/TAILCAT-API.md` |
 
 **Full log:** `git log --oneline` in `~/code_repo/tailcat`.
 
@@ -44,12 +44,13 @@ session and waits for the user.
 add a row. When you finish and commit, remove the row and add
 a "what the agent did most recently" entry above. -->
 
-1. **Roadmap written** — `canon/ROADMAP.md`, the M0-M8 long-term
-   plan with gates, 12-month timeline, and "what we are NOT
-   building" list. About to commit.
-2. **Next (after commit):** create the public GitHub repo,
-   push the session branch, build installable binaries,
-   create a v0.1.0 release, push to Notion + Telegram.
+_Nothing in progress. v0.1.0 is shipped and live on GitHub.
+Repo: github.com/0ArchLinux0/tunnelcat. Release:
+github.com/0ArchLinux0/tunnelcat/releases/tag/v0.1.0.
+5 platform tarballs + install.sh attached. Notion + Telegram +
+Slack notified. Agent is idle, waiting for the next milestone
+(M1: stable identity + contacts YAML) or any other direction
+from the user._
 
 ---
 
