@@ -40,11 +40,12 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 add a row. When you finish and commit, remove the row and add
 a "what the agent did most recently" entry above. -->
 
-1. **M1.3 in progress** — `internal/identity` package
-   skeleton: Load/Save/New + the Curve25519 key file format
-   with version field and chmod 0600. The M1 plan calls
-   for this as the foundation for M1.4 (identity init CLI)
-   and M1.5 (identity show).
+1. **M1.6 in progress** — `internal/contacts` package
+   skeleton (Load/Save/Add/Find/List on a YAML file at
+   ~/.config/tunnelcat/contacts.yaml). M1.3-M1.5 done;
+   M1.6-M1.8 next (contacts + dial-by-name). The user's
+   instruction was 'do M1.3-M1.5, then check in' — done.
+   The check-in is happening now.
 
 ---
 
