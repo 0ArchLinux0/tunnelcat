@@ -42,10 +42,9 @@ a "what the agent did most recently" entry above. -->
 
 1. **M1.6 in progress** — `internal/contacts` package
    skeleton (Load/Save/Add/Find/List on a YAML file at
-   ~/.config/tunnelcat/contacts.yaml). M1.3-M1.5 done;
-   M1.6-M1.8 next (contacts + dial-by-name). The user's
-   instruction was 'do M1.3-M1.5, then check in' — done.
-   The check-in is happening now.
+   ~/.config/tunnelcat/contacts.yaml). User said
+   'proceed till the end' — shipping M1.6 through M1.17
+   with sub-step check-ins collapsed.
 
 ---
 
