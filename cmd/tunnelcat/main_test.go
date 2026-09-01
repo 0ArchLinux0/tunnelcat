@@ -137,7 +137,9 @@ func TestRunHelp(t *testing.T) {
 // TestRunUnknownSubcommand: subcommands that aren't registered
 // → exit 2 with an "unknown subcommand" message.
 func TestRunUnknownSubcommand(t *testing.T) {
-	for _, sub := range []string{"identity", "status", "ssh", "resolve", "ping", "frobnicate"} {
+	// "identity" is registered (M1.4), "status" and the
+	// rest are not yet implemented (M3+).
+	for _, sub := range []string{"status", "ssh", "resolve", "ping", "frobnicate"} {
 		t.Run(sub, func(t *testing.T) {
 			stderr := captureStderr(t, func() {
 				code := run([]string{"tunnelcat", sub})
@@ -187,5 +189,8 @@ func TestUsageString(t *testing.T) {
 	}
 	if _, ok := subcommands["dial"]; !ok {
 		t.Error("subcommand 'dial' not registered")
+	}
+	if _, ok := subcommands["identity"]; !ok {
+		t.Error("subcommand 'identity' not registered")
 	}
 }
