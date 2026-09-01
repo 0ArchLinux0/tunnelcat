@@ -134,33 +134,19 @@ func TestRunHelp(t *testing.T) {
 	}
 }
 
-// TestRunUnknownSubcommand: → error to stderr, exit 2.
+// TestRunUnknownSubcommand: subcommands that aren't registered
+// → exit 2 with an "unknown subcommand" message.
 func TestRunUnknownSubcommand(t *testing.T) {
-	stderr := captureStderr(t, func() {
-		code := run([]string{"tunnelcat", "frobnicate"})
-		if code != 2 {
-			t.Errorf("exit code = %d, want 2", code)
-		}
-	})
-	if !strings.Contains(stderr, "unknown subcommand") {
-		t.Errorf("stderr should mention unknown subcommand, got: %q", stderr)
-	}
-}
-
-// TestRunNotYetImplemented: subcommands that exist in the plan
-// but aren't built yet → exit 1 with a "not yet implemented"
-// message.
-func TestRunNotYetImplemented(t *testing.T) {
-	for _, sub := range []string{"identity", "status", "ssh", "resolve", "ping"} {
+	for _, sub := range []string{"identity", "status", "ssh", "resolve", "ping", "frobnicate"} {
 		t.Run(sub, func(t *testing.T) {
 			stderr := captureStderr(t, func() {
 				code := run([]string{"tunnelcat", sub})
-				if code != 1 {
-					t.Errorf("exit code = %d, want 1", code)
+				if code != 2 {
+					t.Errorf("exit code = %d, want 2", code)
 				}
 			})
-			if !strings.Contains(stderr, "not yet implemented") {
-				t.Errorf("stderr should say 'not yet implemented', got: %q", stderr)
+			if !strings.Contains(stderr, "unknown subcommand") {
+				t.Errorf("stderr should say 'unknown subcommand', got: %q", stderr)
 			}
 		})
 	}
@@ -188,13 +174,18 @@ func TestUsageString(t *testing.T) {
 		"tunnelcat dial",
 		"--version",
 		"--help",
-		"identity",
-		"status",
-		"ssh",
+		"Subcommands:",
 	}
 	for _, want := range required {
 		if !strings.Contains(usage, want) {
 			t.Errorf("usage should contain %q", want)
 		}
+	}
+	// Verify the registry contains the expected subcommands.
+	if _, ok := subcommands["up"]; !ok {
+		t.Error("subcommand 'up' not registered")
+	}
+	if _, ok := subcommands["dial"]; !ok {
+		t.Error("subcommand 'dial' not registered")
 	}
 }
