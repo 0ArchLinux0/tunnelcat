@@ -40,8 +40,11 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 add a row. When you finish and commit, remove the row and add
 a "what the agent did most recently" entry above. -->
 
-1. **M1.1 in progress** — adding `install.sh` at the repo root
-   so `curl ... | sh` works for HEAD, not just releases.
+1. **M1.3 in progress** — `internal/identity` package
+   skeleton: Load/Save/New + the Curve25519 key file format
+   with version field and chmod 0600. The M1 plan calls
+   for this as the foundation for M1.4 (identity init CLI)
+   and M1.5 (identity show).
 
 ---
 
