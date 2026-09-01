@@ -40,13 +40,8 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 add a row. When you finish and commit, remove the row and add
 a "what the agent did most recently" entry above. -->
 
-_Nothing in progress. v0.1.0 is shipped and live on GitHub.
-Repo: github.com/0ArchLinux0/tunnelcat. Release:
-github.com/0ArchLinux0/tunnelcat/releases/tag/v0.1.0.
-5 platform tarballs + install.sh attached. Notion + Telegram +
-Slack notified. Agent is idle, waiting for the next milestone
-(M1: stable identity + contacts YAML) or any other direction
-from the user._
+1. **M1.1 in progress** — adding `install.sh` at the repo root
+   so `curl ... | sh` works for HEAD, not just releases.
 
 ---
 
