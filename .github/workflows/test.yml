@@ -1,17 +1,20 @@
 # GitHub Actions workflow for tunnelcat.
 #
-# Runs on every push and every pull request. Three jobs:
-#   1. `go` — `go build`, `go vet`, `go test` on the Go code
-#   2. `rust` — `cargo build`, `cargo test` on the protocol crate
-#   3. `bridge` — full Go↔Rust cgo integration test
+# Runs on every push and every pull request. Two jobs:
+#   1. `go` — Go build, vet, test, and the cgo FFI smoke test.
+#        Builds the Rust crate in this same job (so the cgo
+#        static lib exists before go build runs).
+#   2. `rust` — cargo test, fmt, clippy on the protocol crate.
 #
-# The bridge job is the most important: it proves the FFI boundary
-# works. If it fails, Stage 1 cannot proceed.
+# The cgo build is the most important thing: if the FFI
+# boundary breaks, nothing else matters. The `go` job does
+# that build, plus all the Go tests.
 #
 # Cache strategy: Go module cache and Cargo target cache both
-# keyed on the lockfile hash. Cuts CI from ~6 min cold to ~2 min warm.
+# keyed on the lockfile hash. Cuts CI from ~6 min cold to ~2
+# min warm.
 #
-# Last updated: 2026-08-30.
+# Last updated: 2026-09-01.
 
 name: test
 
@@ -29,9 +32,15 @@ concurrency:
 jobs:
   # ─────────────────────────────────────────────────────────────
   # Job 1: Go. The bulk of the project.
+  #
+  # The cgo package (internal/rustbridge) links against a Rust
+  # static library that we build below. We do it in this same
+  # job (not in a separate `rust` job that the `go` job depends
+  # on) because (a) it's the only Rust work, (b) it keeps the
+  # workflow simple, (c) we don't need the Rust tests here.
   # ─────────────────────────────────────────────────────────────
   go:
-    name: go (build + vet + test)
+    name: go (build + vet + test + cgo FFI)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -44,6 +53,21 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/tunnelcat-proto -> target
+
+      - name: Build the Rust crate (release)
+        # The cgo directives in internal/rustbridge/bridge.go
+        # point at target/release/libtunnelcat_proto.a. We must
+        # build it before `go build` runs, or the link fails.
+        working-directory: crates/tunnelcat-proto
+        run: cargo build --release
+
       - name: Build
         run: go build ./...
 
@@ -53,15 +77,15 @@ jobs:
       # `go test -short` skips long-running tests. The full
       # `go test ./...` (without -short) is what CI on a real
       # machine should run; on macOS it can take 25 seconds.
-      # We use `-short` here because the testharness tests are
-      # all t.Skip until Stage 1, and the upstream tailcat tests
-      # have no `-short` mode.
       - name: Test (short)
         run: go test -short -count=1 ./...
 
       - name: Test (long, only on main)
         if: github.ref == 'refs/heads/main'
         run: go test -count=1 ./...
+
+      - name: Test the cgo FFI bridge
+        run: go test -v -count=1 ./internal/rustbridge/...
 
       - name: gofmt check
         run: |
@@ -72,10 +96,10 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────────
-  # Job 2: Rust. The protocol crate.
+  # Job 2: Rust tests, fmt, clippy on the protocol crate.
   # ─────────────────────────────────────────────────────────────
   rust:
-    name: rust (build + test)
+    name: rust (test + fmt + clippy)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -91,10 +115,6 @@ jobs:
         with:
           workspaces: crates/tunnelcat-proto -> target
 
-      - name: Build
-        working-directory: crates/tunnelcat-proto
-        run: cargo build --verbose
-
       - name: Test
         working-directory: crates/tunnelcat-proto
         run: cargo test --verbose
@@ -107,36 +127,3 @@ jobs:
         working-directory: crates/tunnelcat-proto
         run: cargo clippy --all-targets -- -D warnings
         continue-on-error: true  # many lints fire on a brand-new crate
-
-  # ─────────────────────────────────────────────────────────────
-  # Job 3: Go↔Rust bridge. The FFI smoke test.
-  # ─────────────────────────────────────────────────────────────
-  bridge:
-    name: go-rust bridge
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    needs: [go, rust]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.27"
-          cache: true
-          cache-dependency-path: go.sum
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Build Rust crate
-        working-directory: crates/tunnelcat-proto
-        run: cargo build --release
-
-      - name: Test the Go bridge
-        # The cgo shim links against the static lib. The crate's
-        # build.rs copies the C header to a stable include path
-        # so #cgo CFLAGS can find it without globbing.
-        run: go test -v -count=1 ./internal/rustbridge/...
