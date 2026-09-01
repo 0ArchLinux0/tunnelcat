@@ -102,8 +102,7 @@ func withLockedFile(fn func(*File) error) error {
 	if err := fn(f); err != nil {
 		return err
 	}
-	return Save(f) // Save takes the mutex; withLockedFile holds
-	// it across the Load+fn+Save, so the call is safe.
+	return saveLocked(f)
 }
 
 // Load reads the contacts file. If the file does not exist,
@@ -122,14 +121,20 @@ func Load() (*File, error) {
 
 // Save writes the contact list to disk atomically with mode 0600.
 func Save(f *File) error {
+	loadMu.Lock()
+	defer loadMu.Unlock()
+	return saveLocked(f)
+}
+
+// saveLocked is the inner Save that does NOT take the mutex.
+// Callers must already hold loadMu.
+func saveLocked(f *File) error {
 	if f == nil {
 		return errors.New("contacts: cannot save nil file")
 	}
 	if f.Version == 0 {
 		f.Version = fileVersion
 	}
-	loadMu.Lock()
-	defer loadMu.Unlock()
 
 	path, err := Path()
 	if err != nil {

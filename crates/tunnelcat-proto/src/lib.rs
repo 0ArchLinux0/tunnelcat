@@ -52,8 +52,13 @@ pub extern "C" fn tunnelcat_proto_version() -> *const c_char {
     // `cvt!` would be cleaner but adds a dependency. For a
     // compile-time-known string, `concat!` plus an explicit
     // NUL terminator is the simplest correct thing.
-    static VERSION: &[u8] =
-        concat!(env!("CARGO_PKG_NAME"), " v", env!("CARGO_PKG_VERSION"), "\0").as_bytes();
+    static VERSION: &[u8] = concat!(
+        env!("CARGO_PKG_NAME"),
+        " v",
+        env!("CARGO_PKG_VERSION"),
+        "\0"
+    )
+    .as_bytes();
     // SAFETY: VERSION is a `&'static [u8]` whose final byte is
     // explicitly 0. Casting `*const u8` to `*const c_char` is
     // a no-op on every platform Go runs on.
