@@ -9,12 +9,12 @@
 //
 // File format (version 1):
 //
-//   {
-//     "version": 1,
-//     "name": "default",
-//     "created_at": "2026-08-30T15:00:00Z",
-//     "key": "nodekey:9c8d2e6728da80a1dd37e275a82595b42d9a838610bc53f74a7670d1610f2e34"
-//   }
+//	{
+//	  "version": 1,
+//	  "name": "default",
+//	  "created_at": "2026-08-30T15:00:00Z",
+//	  "key": "nodekey:9c8d2e6728da80a1dd37e275a82595b42d9a838610bc53f74a7670d1610f2e34"
+//	}
 //
 // The `key` field is a Curve25519 private key in the
 // standard tailscale.com/types/key text format (which is

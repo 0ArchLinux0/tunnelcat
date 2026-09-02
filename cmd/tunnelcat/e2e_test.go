@@ -26,12 +26,12 @@ import (
 )
 
 // TestE2EEchoRoundTrip is the Stage 1 verify. It:
-//   1. starts a real `tunnelcat up` subprocess
-//   2. parses the connection token from its stdout
-//   3. starts a real `tunnelcat dial <token>` subprocess
-//   4. pipes "hello through tunnel\n" into the dial's stdin
-//   5. reads the dial's stdout, expects the same line back
-//   6. cleans up both subprocesses
+//  1. starts a real `tunnelcat up` subprocess
+//  2. parses the connection token from its stdout
+//  3. starts a real `tunnelcat dial <token>` subprocess
+//  4. pipes "hello through tunnel\n" into the dial's stdin
+//  5. reads the dial's stdout, expects the same line back
+//  6. cleans up both subprocesses
 //
 // Gated on TUNNELCAT_E2E=1 because it requires:
 //   - a built `tunnelcat` binary
@@ -177,9 +177,10 @@ func min(a, b int) int {
 
 // tunnelcatBinary locates the `tunnelcat` binary for the e2e
 // test. We look in this order:
-//   1. TUNNELCAT_BIN env var (explicit override)
-//   2. /tmp/tunnelcat (the standard build path)
-//   3. ./tunnelcat (relative to the test working dir)
+//  1. TUNNELCAT_BIN env var (explicit override)
+//  2. /tmp/tunnelcat (the standard build path)
+//  3. ./tunnelcat (relative to the test working dir)
+//
 // Fails the test if none of these exist.
 func tunnelcatBinary(t *testing.T) string {
 	t.Helper()

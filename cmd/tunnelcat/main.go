@@ -1,11 +1,12 @@
 // Command tunnelcat is the tunnelcat CLI.
 //
 // Stage 1 surface:
-//   tunnelcat up                          start a server, print token
-//   tunnelcat dial <token> [--port N]     dial a server through the tunnel,
-//                                         pipe stdin/stdout
-//   tunnelcat --version                   print version, exit
-//   tunnelcat --help                      print usage, exit
+//
+//	tunnelcat up                          start a server, print token
+//	tunnelcat dial <token> [--port N]     dial a server through the tunnel,
+//	                                      pipe stdin/stdout
+//	tunnelcat --version                   print version, exit
+//	tunnelcat --help                      print usage, exit
 //
 // The CLI is split into a thin main() that calls run(args). This
 // makes the dispatch logic testable without the os.Exit machinery

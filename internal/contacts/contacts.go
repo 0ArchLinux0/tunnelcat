@@ -8,14 +8,14 @@
 //
 // File format (version 1):
 //
-//   version: 1
-//   contacts:
-//     - name: studio-mac
-//       pubkey: nodekey:abc...
-//       added_at: 2026-08-30T15:00:00Z
-//       last_seen: 2026-08-30T15:30:00Z
-//       last_addr: "100.64.0.2:22"
-//       note: "main workstation"
+//	version: 1
+//	contacts:
+//	  - name: studio-mac
+//	    pubkey: nodekey:abc...
+//	    added_at: 2026-08-30T15:00:00Z
+//	    last_seen: 2026-08-30T15:30:00Z
+//	    last_addr: "100.64.0.2:22"
+//	    note: "main workstation"
 //
 // All fields except name and pubkey are optional. The package
 // does not validate pubkey format — callers should validate
@@ -52,7 +52,7 @@ type Contact struct {
 
 // File is the on-disk contact list.
 type File struct {
-	Version int       `yaml:"version"`
+	Version  int       `yaml:"version"`
 	Contacts []Contact `yaml:"contacts"`
 }
 

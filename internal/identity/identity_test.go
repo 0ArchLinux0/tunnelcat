@@ -45,20 +45,20 @@ func TestValidName(t *testing.T) {
 		}
 	}
 	bad := []string{
-		"",                         // empty
-		strings.Repeat("x", 65),    // too long
-		"with space",                // space
-		"with/slash",                // slash
-		"with\\backslash",           // backslash
-		"with:colon",                // colon (invalid on Windows)
-		"with*star",                 // star
-		"..",                        // path traversal
-		".",                         // path traversal
-		"../etc/passwd",             // path traversal
-		"with?question",             // question mark
-		"with\"quote",               // quote
-		"with|pipe",                 // pipe
-		"with\nnewline",             // newline
+		"",                      // empty
+		strings.Repeat("x", 65), // too long
+		"with space",            // space
+		"with/slash",            // slash
+		"with\\backslash",       // backslash
+		"with:colon",            // colon (invalid on Windows)
+		"with*star",             // star
+		"..",                    // path traversal
+		".",                     // path traversal
+		"../etc/passwd",         // path traversal
+		"with?question",         // question mark
+		"with\"quote",           // quote
+		"with|pipe",             // pipe
+		"with\nnewline",         // newline
 	}
 	for _, n := range bad {
 		if validName(n) {

@@ -4,17 +4,19 @@
 // Backed by the `internal/identity` package.
 //
 // Subcommands:
-//   tunnelcat identity init        create a new identity (fails
-//                                  if one already exists for the
-//                                  given name; use --force to
-//                                  overwrite)
-//   tunnelcat identity show        print the public key
-//   tunnelcat identity list        list all identity names
-//   tunnelcat identity delete      delete an identity (idempotent)
+//
+//	tunnelcat identity init        create a new identity (fails
+//	                               if one already exists for the
+//	                               given name; use --force to
+//	                               overwrite)
+//	tunnelcat identity show        print the public key
+//	tunnelcat identity list        list all identity names
+//	tunnelcat identity delete      delete an identity (idempotent)
 //
 // Future (M2):
-//   tunnelcat identity rotate     generate a new key, re-register
-//                                  with the coord server
+//
+//	tunnelcat identity rotate     generate a new key, re-register
+//	                               with the coord server
 //
 // networking-layer: application/Go (this subcommand does not
 // touch the data plane; it only manipulates local files).
