@@ -21,6 +21,7 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 
 | When | What | Commit | Where to read more |
 |---|---|---|---|
+| 2026-09-01 | M1.8-M1.16 done: dial-by-name, --allow, --qr, installpath, doctor, log-level, CI cross-build, release workflow | `f6dcd40` `bc4e607` | `cmd/tunnelcat/`, `.github/workflows/` |
 | 2026-09-01 | M1.7 contact CLI (add/list/show/remove) | `54c0e74` | `cmd/tunnelcat/contact.go` |
 | 2026-09-01 | M1.6 contacts pkg + deadlock fix | `7f36615` | `internal/contacts/` |
 | 2026-09-01 | CI fixed (rust build before go; removed upstream workflows) | `4e0c80c` | `.github/workflows/test.yml` |
