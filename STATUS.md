@@ -17,10 +17,13 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 
 ---
 
-## What the agent did most recently (last 5 entries, newest first)
+## What the agent did most recently (last 8 entries, newest first)
 
 | When | What | Commit | Where to read more |
 |---|---|---|---|
+| 2026-09-01 | M1.7 contact CLI (add/list/show/remove) | `54c0e74` | `cmd/tunnelcat/contact.go` |
+| 2026-09-01 | M1.6 contacts pkg + deadlock fix | `7f36615` | `internal/contacts/` |
+| 2026-09-01 | CI fixed (rust build before go; removed upstream workflows) | `4e0c80c` | `.github/workflows/test.yml` |
 | 2026-08-30 | (about to commit) | (this commit) | v0.1.0 release published |
 | 2026-08-30 | rustbridge cgo-gated; release script v2 | `d51a330` | `internal/rustbridge/`, `bin/release.sh` |
 | 2026-08-30 | M0 roadmap (M0-M8) | `40afef9` | `canon/ROADMAP.md` |
@@ -40,11 +43,11 @@ and the M0 closure at `canon/closures/M0-20260830.md`.
 add a row. When you finish and commit, remove the row and add
 a "what the agent did most recently" entry above. -->
 
-1. **M1.6 in progress** — `internal/contacts` package
-   skeleton (Load/Save/Add/Find/List on a YAML file at
-   ~/.config/tunnelcat/contacts.yaml). User said
-   'proceed till the end' — shipping M1.6 through M1.17
-   with sub-step check-ins collapsed.
+1. **M1.8 in progress** — `tunnelcat dial <contact-name>`.
+   Blocked: need the exact `tailcat.ConnBlob` constructor
+   from a pubkey. `contacts.Find(name)` returns the pubkey;
+   the next step is to build the ConnBlob from it. Hold until
+   the constructor is confirmed from upstream docs.
 
 ---
 
