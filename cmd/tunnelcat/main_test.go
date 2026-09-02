@@ -162,7 +162,7 @@ func TestRunDialMissingToken(t *testing.T) {
 			t.Errorf("exit code = %d, want 2", code)
 		}
 	})
-	if !strings.Contains(stderr, "missing <token>") {
+	if !strings.Contains(stderr, "missing <token-or-name>") {
 		t.Errorf("stderr should mention missing token, got: %q", stderr)
 	}
 }

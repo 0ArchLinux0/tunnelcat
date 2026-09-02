@@ -53,6 +53,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tailscale/tailcat/internal/installpath"
 	"go4.org/mem"
 	"tailscale.com/types/key"
 )
@@ -90,19 +91,9 @@ type file struct {
 }
 
 // configDir returns the directory where keys are stored.
-// Honors XDG_CONFIG_HOME; defaults to ~/.config/tunnelcat.
+// Delegates to internal/installpath.
 func configDir() (string, error) {
-	if x := os.Getenv("TUNNELCAT_CONFIG_DIR"); x != "" {
-		return x, nil
-	}
-	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
-		return filepath.Join(x, defaultDirName), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("identity: cannot determine home dir: %w", err)
-	}
-	return filepath.Join(home, ".config", defaultDirName), nil
+	return installpath.ConfigDir()
 }
 
 // Path returns the file path for the named identity. The

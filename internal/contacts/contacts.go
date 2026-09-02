@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tailscale/tailcat/internal/installpath"
 	"go4.org/mem"
 	"gopkg.in/yaml.v3"
 )
@@ -44,6 +45,12 @@ const fileVersion = 1
 type Contact struct {
 	Name     string     `yaml:"name"`
 	Pubkey   string     `yaml:"pubkey"`
+	// ConnBlob is the optional tailcat.ConnBlob (the "tc..."
+	// wire-encoded token) for this contact. If set, `tunnelcat
+	// dial <name>` can use it directly. If empty, dial falls
+	// back to a raw-token arg. The friend can send the token
+	// out-of-band; once stored, repeat dials are just a name.
+	ConnBlob string     `yaml:"conn_blob,omitempty"`
 	AddedAt  time.Time  `yaml:"added_at,omitempty"`
 	LastSeen *time.Time `yaml:"last_seen,omitempty"`
 	LastAddr string     `yaml:"last_addr,omitempty"`
@@ -57,20 +64,9 @@ type File struct {
 }
 
 // configDir returns the directory where the contacts file is
-// stored. Same precedence as internal/identity: TUNNELCAT_CONFIG_DIR
-// > XDG_CONFIG_HOME > ~/.config/tunnelcat.
+// stored. Delegates to internal/installpath.
 func configDir() (string, error) {
-	if x := os.Getenv("TUNNELCAT_CONFIG_DIR"); x != "" {
-		return x, nil
-	}
-	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
-		return filepath.Join(x, "tunnelcat"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("contacts: cannot determine home dir: %w", err)
-	}
-	return filepath.Join(home, ".config", "tunnelcat"), nil
+	return installpath.ConfigDir()
 }
 
 // Path returns the file path for the contacts list.

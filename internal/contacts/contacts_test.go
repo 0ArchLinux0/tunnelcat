@@ -205,6 +205,24 @@ func TestRejectCorruptYAML(t *testing.T) {
 	}
 }
 
+// TestConnBlobRoundTrip verifies the ConnBlob field round-trips
+// through Add → Save → Load → Find.
+func TestConnBlobRoundTrip(t *testing.T) {
+	withTempHome(t)
+	pubkey := "nodekey:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	blob := "tc" + strings.Repeat("x", 64)
+	if err := Add(Contact{Name: "alice", Pubkey: pubkey, ConnBlob: blob}); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	c, ok := Find("alice")
+	if !ok {
+		t.Fatal("Find returned false after Add")
+	}
+	if c.ConnBlob != blob {
+		t.Errorf("ConnBlob = %q, want %q", c.ConnBlob, blob)
+	}
+}
+
 func TestConcurrentAdd(t *testing.T) {
 	withTempHome(t)
 	const N = 20

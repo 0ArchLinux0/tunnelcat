@@ -5,12 +5,21 @@
 // echo (in M1, this is the smallest end-to-end test; in M6 we'll
 // add per-port handlers from the services YAML).
 //
+// Flags:
+//   --identity=<name>   use a stored identity (instead of ephemeral key)
+//   --allow=<name>      allow this contact (repeatable). If no
+//                       --allow is given, the server admits all
+//                       client connections (open mode). With at
+//                       least one --allow, only the listed
+//                       contacts' pubkeys are admitted.
+//
 // networking-layer: application/Go (this is the data-plane
 // call site; the actual data plane is tailscale.com).
 package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -19,36 +28,75 @@ import (
 	"syscall"
 
 	"github.com/tailscale/tailcat"
+	"github.com/tailscale/tailcat/internal/contacts"
+	"github.com/tailscale/tailcat/internal/identity"
+	"tailscale.com/types/key"
 )
 
 func init() {
 	register("up", "listen and print a connection token", runUp)
 }
 
-// runUp starts a tailcat server, prints the connection token
-// to stdout, and blocks until SIGINT/SIGTERM. The token is
-// what the client pastes into `tunnelcat dial <token>`.
+const upUsage = `Usage:
+  tunnelcat up [--identity=NAME] [--allow=NAME]...
+
+Flags:
+  --identity=NAME   use a stored identity (default: ephemeral key)
+  --allow=NAME      allow a contact (repeatable). Default: no allowlist.
+`
+
 func runUp(args []string) int {
-	// Set up a signal handler so Ctrl-C cleanly closes the
-	// server. Without this, Ctrl-C would leave the WireGuard
-	// peer mapping dangling in DERP until the process actually
-	// exits, which can take a few seconds.
+	fs := flag.NewFlagSet("up", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	identityName := fs.String("identity", "", "use stored identity NAME (default: ephemeral)")
+	var allowFlags multiFlag
+	fs.Var(&allowFlags, "allow", "allow this contact (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if len(fs.Args()) > 0 {
+		fmt.Fprintf(os.Stderr, "tunnelcat up: unexpected arguments: %v\n", fs.Args())
+		fmt.Fprint(os.Stderr, upUsage)
+		return 2
+	}
+
+	// Set up a signal handler so Ctrl-C cleanly closes the server.
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	srv := &tailcat.Server{
-		// Key is nil → ephemeral key. Each runUp generates a
-		// fresh Curve25519 keypair. Stage 2's `identity init`
-		// will save a stable key to disk and pass it here.
 		// Logf is nil → log.Printf, the default.
-		// ServedTCPPorts is nil → admit all ports through the
-		// filter. Stage 6's services YAML will narrow this.
+		// ServedTCPPorts is nil → admit all ports through the filter.
 	}
 
-	// Set up a simple echo handler on any port. When the client
-	// dials us, we just echo everything they send back to them.
-	// This is the smallest possible end-to-end test.
+	// If --identity is set, load the identity from disk and use
+	// its private key. Otherwise, leave Key nil for an ephemeral
+	// key (the M0 default).
+	if *identityName != "" {
+		id, err := identity.Load(*identityName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tunnelcat up: identity %q: %v\n", *identityName, err)
+			return 1
+		}
+		srv.Key = id.Key
+	}
+
+	// If --allow is set, populate the AllowedClients from the
+	// contact list. An empty allowlist means "admit all" (open
+	// mode). A non-empty allowlist means "admit only these
+	// pubkeys." This is the M1.9 first security feature.
+	if len(allowFlags) > 0 {
+		allowed, err := resolveAllowList(allowFlags)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tunnelcat up: %v\n", err)
+			return 1
+		}
+		srv.AllowedClients = allowed
+		fmt.Fprintf(os.Stderr, "tunnelcat: allowlist active: %d contact(s) allowed\n", len(allowed))
+	}
+
+	// Set up a simple echo handler on any port.
 	srv.OnTCP = echoHandler
 
 	if err := srv.Start(); err != nil {
@@ -57,24 +105,45 @@ func runUp(args []string) int {
 	}
 	defer srv.Close()
 
-	// Print the token. tailcat's ConnBlob already includes a
-	// "tc..." prefix; we just print it raw so the user can
-	// pipe it to a file or copy it.
 	fmt.Printf("🐈 Server listening with new address: %s\n", srv.ConnBlob())
 	fmt.Fprintln(os.Stderr, "press Ctrl-C to stop")
 
-	// Block until SIGINT or fatal error. tailcat's server
-	// doesn't expose a "wait for shutdown" method, so we just
-	// select on the context and on a fake error channel.
 	<-ctx.Done()
 	fmt.Fprintln(os.Stderr, "tunnelcat: shutting down")
 	return 0
 }
 
+// multiFlag is a flag.Value that accumulates repeated --allow
+// invocations into a slice.
+type multiFlag []string
+
+func (m *multiFlag) String() string { return fmt.Sprint([]string(*m)) }
+func (m *multiFlag) Set(v string) error {
+	*m = append(*m, v)
+	return nil
+}
+
+// resolveAllowList converts a list of contact names into the
+// corresponding key.NodePublic slice. Fails if any name is not
+// a known contact, or if the contact's pubkey is malformed.
+func resolveAllowList(names []string) ([]key.NodePublic, error) {
+	out := make([]key.NodePublic, 0, len(names))
+	for _, name := range names {
+		c, ok := contacts.Find(name)
+		if !ok {
+			return nil, fmt.Errorf("no such contact %q (add it with `tunnelcat contact add %q <pubkey>`)", name, name)
+		}
+		var k key.NodePublic
+		if err := k.UnmarshalText([]byte(c.Pubkey)); err != nil {
+			return nil, fmt.Errorf("contact %q has malformed pubkey %q: %w", name, c.Pubkey, err)
+		}
+		out = append(out, k)
+	}
+	return out, nil
+}
+
 // echoHandler is the OnTCP handler for the server. It echoes
-// everything the client sends back to them. The handler is
-// called per port, so we could in principle have different
-// behavior per port — M6 adds that with the services YAML.
+// everything the client sends back to them.
 func echoHandler(port uint16) func(net.Conn) {
 	return func(c net.Conn) {
 		defer c.Close()

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/tailscale/tailcat/internal/contacts"
 )
@@ -33,6 +34,7 @@ const contactUsage = `Usage:
   tunnelcat contact list                    list all contacts (one per line, name then pubkey)
   tunnelcat contact show <name>              show one contact's details
   tunnelcat contact remove <name>           remove a peer from the contact list
+  tunnelcat contact set-blob <name> <token> store a peer ConnBlob so dial <name> works
 `
 
 // pubkeyRegex matches the canonical nodekey format: "nodekey:"
@@ -53,6 +55,8 @@ func runContact(args []string) int {
 		return runContactShow(args[1:])
 	case "remove":
 		return runContactRemove(args[1:])
+	case "set-blob":
+		return runContactSetBlob(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "tunnelcat contact: unknown verb %q\n\n", args[0])
 		fmt.Fprint(os.Stderr, contactUsage)
@@ -144,5 +148,29 @@ func runContactRemove(args []string) int {
 		return 1
 	}
 	fmt.Printf("✓ removed contact %q\n", args[0])
+	return 0
+}
+
+func runContactSetBlob(args []string) int {
+	if len(args) != 2 {
+		fmt.Fprintln(os.Stderr, "tunnelcat contact set-blob: expected <name> <token>")
+		return 2
+	}
+	name, blob := args[0], args[1]
+	if !strings.HasPrefix(blob, "tc") {
+		fmt.Fprintf(os.Stderr, "tunnelcat contact set-blob: token must start with \"tc\"; got %q\n", blob)
+		return 2
+	}
+	c, ok := contacts.Find(name)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "tunnelcat contact set-blob: no such contact %q (add it first with `tunnelcat contact add`)\n", name)
+		return 1
+	}
+	c.ConnBlob = blob
+	if err := contacts.Update(*c); err != nil {
+		fmt.Fprintf(os.Stderr, "tunnelcat contact set-blob: %v\n", err)
+		return 1
+	}
+	fmt.Printf("✓ set ConnBlob for %q\n", name)
 	return 0
 }

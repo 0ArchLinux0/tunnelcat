@@ -15,9 +15,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tailscale/tailcat"
+	"github.com/tailscale/tailcat/internal/contacts"
+	"github.com/tailscale/tailcat/internal/identity"
 )
 
 func init() {
@@ -27,23 +30,47 @@ func init() {
 // runDial dials a server through the tunnel and pipes stdin/stdout
 // to the resulting connection. The server's `OnTCP` handler echoes,
 // so anything you type on the client side comes back.
+//
+// The first argument can be either:
+//   - a contact name (looked up in the local contacts file),
+//     in which case the stored ConnBlob for that contact is used
+//   - a raw tailcat.ConnBlob token (the "tc..." string)
+//
+// If the arg starts with "tc" we treat it as a token; otherwise
+// we look it up as a contact. The contact path requires the
+// contact to have a ConnBlob set (do `tunnelcat contact
+// set-blob <name> <token>` after the friend sends the token).
 func runDial(args []string) int {
 	fs := flag.NewFlagSet("dial", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	port := fs.Uint("port", 12345, "TCP port on the server side to dial (default: 12345 = echo)")
 	timeout := fs.Duration("timeout", 30*time.Second, "connect timeout")
+	identityName := fs.String("identity", "", "use stored identity NAME (default: ephemeral)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	rest := fs.Args()
 	if len(rest) < 1 {
-		fmt.Fprintln(os.Stderr, "tunnelcat dial: missing <token> argument")
-		fmt.Fprintln(os.Stderr, "Usage: tunnelcat dial <token> [--port N]")
+		fmt.Fprintln(os.Stderr, "tunnelcat dial: missing <token-or-name> argument")
+		fmt.Fprintln(os.Stderr, "Usage: tunnelcat dial <token-or-name> [--port N] [--identity=NAME]")
 		return 2
 	}
-	token := tailcat.ConnBlob(rest[0])
+	arg := rest[0]
+	token := resolveDialArg(arg)
+	if token == "" {
+		// resolveDialArg already printed the error.
+		return 1
+	}
 
 	cl := tailcat.NewClient(token)
+	if *identityName != "" {
+		id, err := identity.Load(*identityName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "tunnelcat dial: identity %q: %v\n", *identityName, err)
+			return 1
+		}
+		cl.Key = id.Key
+	}
 	defer cl.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
@@ -98,4 +125,24 @@ func runDial(args []string) int {
 // SSH that expect the client to close its write side first.
 type closeWriter interface {
 	CloseWrite() error
+}
+
+// resolveDialArg maps a dial argument to a tailcat.ConnBlob.
+// If the arg starts with "tc" it's a raw token. Otherwise we
+// look it up in the local contact list. Returns "" on error
+// (and prints the error to stderr).
+func resolveDialArg(arg string) tailcat.ConnBlob {
+	if strings.HasPrefix(arg, "tc") {
+		return tailcat.ConnBlob(arg)
+	}
+	c, ok := contacts.Find(arg)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "tunnelcat dial: %q is not a \"tc\" token and is not a known contact (add it with `tunnelcat contact add`)\n", arg)
+		return ""
+	}
+	if c.ConnBlob == "" {
+		fmt.Fprintf(os.Stderr, "tunnelcat dial: contact %q has no ConnBlob set; have your friend send their token and run `tunnelcat contact set-blob %q <token>`\n", arg, arg)
+		return ""
+	}
+	return tailcat.ConnBlob(c.ConnBlob)
 }
