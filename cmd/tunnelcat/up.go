@@ -6,12 +6,13 @@
 // add per-port handlers from the services YAML).
 //
 // Flags:
-//   --identity=<name>   use a stored identity (instead of ephemeral key)
-//   --allow=<name>      allow this contact (repeatable). If no
-//                       --allow is given, the server admits all
-//                       client connections (open mode). With at
-//                       least one --allow, only the listed
-//                       contacts' pubkeys are admitted.
+//
+//	--identity=<name>   use a stored identity (instead of ephemeral key)
+//	--allow=<name>      allow this contact (repeatable). If no
+//	                    --allow is given, the server admits all
+//	                    client connections (open mode). With at
+//	                    least one --allow, only the listed
+//	                    contacts' pubkeys are admitted.
 //
 // networking-layer: application/Go (this is the data-plane
 // call site; the actual data plane is tailscale.com).

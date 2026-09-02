@@ -7,8 +7,9 @@
 // the long string.
 //
 // Flags:
-//   --qr              print a QR code of the ConnBlob
-//   --qr-size=SIZE    small|medium|large (default: medium)
+//
+//	--qr              print a QR code of the ConnBlob
+//	--qr-size=SIZE    small|medium|large (default: medium)
 //
 // networking-layer: application/Go (terminal output only;
 // no network or data plane in this file).

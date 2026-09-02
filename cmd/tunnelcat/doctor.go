@@ -5,11 +5,11 @@
 // a one-line fix suggestion for failures.
 //
 // Checks:
-//   1. Default identity file exists and is valid
-//   2. Contacts file is parseable (missing is OK)
-//   3. Reachability to derp.tailscale.com on port 443 (TCP, 5s)
-//   4. UDP outbound not blocked (best-effort: try a known port)
-//   5. At least one identity is present (different from #1)
+//  1. Default identity file exists and is valid
+//  2. Contacts file is parseable (missing is OK)
+//  3. Reachability to derp.tailscale.com on port 443 (TCP, 5s)
+//  4. UDP outbound not blocked (best-effort: try a known port)
+//  5. At least one identity is present (different from #1)
 //
 // networking-layer: application/Go (diagnostic; touches the
 // network only briefly for the DERP TCP check).

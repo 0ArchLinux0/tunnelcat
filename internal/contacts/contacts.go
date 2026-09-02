@@ -43,8 +43,8 @@ const fileVersion = 1
 
 // Contact is a single named peer.
 type Contact struct {
-	Name     string     `yaml:"name"`
-	Pubkey   string     `yaml:"pubkey"`
+	Name   string `yaml:"name"`
+	Pubkey string `yaml:"pubkey"`
 	// ConnBlob is the optional tailcat.ConnBlob (the "tc..."
 	// wire-encoded token) for this contact. If set, `tunnelcat
 	// dial <name>` can use it directly. If empty, dial falls
