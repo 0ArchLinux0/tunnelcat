@@ -89,7 +89,7 @@ machines. The next milestones are about making it work for
 
 ---
 
-### M1 — "I can give this to one friend" (target: 1–2 weeks)
+### M1 — "I can give this to one friend" (target: 1–2 weeks) — ✅ code done 2026-09-01; friend test (M1.17) held for user
 
 **Shippable thing:** a friend can run a one-liner on their Mac
 or Linux machine and connect to your tunnel. They don't need
