@@ -1,0 +1,60 @@
+# GitHub Actions workflow for tunnelcat releases.
+#
+# Triggered on tag push (v*). Runs the test suite, builds the
+# release tarballs with bin/release.sh, and uses gh-release to
+# publish the GitHub Release.
+#
+# The user typically cuts a release by:
+#   git tag v0.2.0
+#   git push --tags
+# and waits 2-3 minutes for this workflow.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+# GitHub releases need write access to the repo contents.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build + publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # We need the full history for goreleaser / changelog,
+          # even though we use bin/release.sh (not goreleaser).
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Run tests
+        run: go test -short -count=1 ./...
+
+      - name: Build release tarballs
+        # bin/release.sh builds for darwin/amd64, darwin/arm64,
+        # linux/amd64, linux/arm64, and windows/amd64. The Rust
+        # bridge is cgo-only on the host (macOS) so other
+        # platforms get a non-cgo build.
+        run: bin/release.sh "${GITHUB_REF_NAME}"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          # Publish every tarball under dist/<version>/*.
+          files: |
+            dist/${{ github.ref_name }}/*.tar.gz
+            dist/${{ github.ref_name }}/SHA256SUMS
+            dist/${{ github.ref_name }}/install.sh
+          fail_on_unmatched_files: false
+          generate_release_notes: true

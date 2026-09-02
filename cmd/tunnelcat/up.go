@@ -38,17 +38,19 @@ func init() {
 }
 
 const upUsage = `Usage:
-  tunnelcat up [--identity=NAME] [--allow=NAME]...
+  tunnelcat up [--identity=NAME] [--allow=NAME]... [--log-level=LEVEL]
 
 Flags:
   --identity=NAME   use a stored identity (default: ephemeral key)
   --allow=NAME      allow a contact (repeatable). Default: no allowlist.
+  --log-level=LEVEL info|warn|error|silent (default: warn)
 `
 
 func runUp(args []string) int {
 	fs := flag.NewFlagSet("up", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	identityName := fs.String("identity", "", "use stored identity NAME (default: ephemeral)")
+	logLevel := fs.String("log-level", "warn", "data-plane log level: info|warn|error|silent")
 	var allowFlags multiFlag
 	fs.Var(&allowFlags, "allow", "allow this contact (repeatable)")
 	if err := fs.Parse(args); err != nil {
@@ -66,7 +68,7 @@ func runUp(args []string) int {
 	defer cancel()
 
 	srv := &tailcat.Server{
-		// Logf is nil → log.Printf, the default.
+		Logf: LogLevelFromString(*logLevel),
 		// ServedTCPPorts is nil → admit all ports through the filter.
 	}
 

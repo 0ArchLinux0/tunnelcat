@@ -46,13 +46,14 @@ func runDial(args []string) int {
 	port := fs.Uint("port", 12345, "TCP port on the server side to dial (default: 12345 = echo)")
 	timeout := fs.Duration("timeout", 30*time.Second, "connect timeout")
 	identityName := fs.String("identity", "", "use stored identity NAME (default: ephemeral)")
+	logLevel := fs.String("log-level", "warn", "data-plane log level: info|warn|error|silent")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	rest := fs.Args()
 	if len(rest) < 1 {
 		fmt.Fprintln(os.Stderr, "tunnelcat dial: missing <token-or-name> argument")
-		fmt.Fprintln(os.Stderr, "Usage: tunnelcat dial <token-or-name> [--port N] [--identity=NAME]")
+		fmt.Fprintln(os.Stderr, "Usage: tunnelcat dial <token-or-name> [--port N] [--identity=NAME] [--log-level=LEVEL]")
 		return 2
 	}
 	arg := rest[0]
@@ -63,6 +64,7 @@ func runDial(args []string) int {
 	}
 
 	cl := tailcat.NewClient(token)
+	cl.Logf = LogLevelFromString(*logLevel)
 	if *identityName != "" {
 		id, err := identity.Load(*identityName)
 		if err != nil {

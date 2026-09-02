@@ -96,7 +96,47 @@ jobs:
           fi
 
   # ─────────────────────────────────────────────────────────────
-  # Job 2: Rust tests, fmt, clippy on the protocol crate.
+  # Job 2: Cross-build. The friend test runs on whatever
+  # platform the friend happens to have. We build for the
+  # 3 most common: darwin/amd64, darwin/arm64, linux/amd64.
+  # The Rust bridge is cgo-only on the host platform; cross
+  # builds use CGO_ENABLED=0 and the bridge returns a runtime
+  # error if exercised, but the rest of the data plane still
+  # works.
+  # ─────────────────────────────────────────────────────────────
+  cross-build:
+    name: cross-build (${{ matrix.target.os }}/${{ matrix.target.arch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { os: darwin,  arch: amd64 }
+          - { os: darwin,  arch: arm64 }
+          - { os: linux,   arch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Build (non-cgo)
+        env:
+          GOOS:   ${{ matrix.target.os }}
+          GOARCH: ${{ matrix.target.arch }}
+        run: |
+          mkdir -p dist/cross-build
+          CGO_ENABLED=0 go build -o dist/cross-build/tunnelcat-${{ matrix.target.os }}-${{ matrix.target.arch }} ./cmd/tunnelcat
+          ls -la dist/cross-build/
+          file dist/cross-build/* 2>/dev/null || true
+
+  # ─────────────────────────────────────────────────────────────
+  # Job 3: Rust tests, fmt, clippy on the protocol crate.
   # ─────────────────────────────────────────────────────────────
   rust:
     name: rust (test + fmt + clippy)
