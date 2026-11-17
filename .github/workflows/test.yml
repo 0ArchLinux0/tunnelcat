@@ -19,12 +19,7 @@
 name: test
 
 on:
-  push:
-    branches: [main, "sess-*"]
-  pull_request:
-    branches: [main]
-
-# Cancel in-flight CI for the same branch on a new push.
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
